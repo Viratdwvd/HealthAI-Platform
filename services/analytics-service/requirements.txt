@@ -1,0 +1,16 @@
+fastapi==0.111.0
+uvicorn[standard]==0.29.0
+pandas==2.2.2
+prophet==1.1.5
+statsmodels==0.14.2
+asyncpg==0.29.0
+sqlalchemy[asyncio]==2.0.30
+prometheus-fastapi-instrumentator==7.0.0
+pydantic-settings==2.2.1
+structlog==24.1.0
+opentelemetry-sdk==1.24.0
+opentelemetry-exporter-otlp-proto-grpc==1.24.0
+
+pytest-asyncio==0.23.6
+pytest==8.2.0
+pytest-cov==5.0.0

@@ -1,0 +1,121 @@
+---
+# NGINX Ingress Controller – routes external traffic to platform services
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: platform-ingress
+  namespace: healthcare
+  annotations:
+    kubernetes.io/ingress.class: nginx
+    nginx.ingress.kubernetes.io/rewrite-target: /$2
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "60"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "60"
+    nginx.ingress.kubernetes.io/proxy-body-size: "60m"
+    # Rate limiting at ingress level (belt-and-suspenders with service-level)
+    nginx.ingress.kubernetes.io/limit-rps: "100"
+    # CORS
+    nginx.ingress.kubernetes.io/enable-cors: "true"
+    nginx.ingress.kubernetes.io/cors-allow-origin: "*"
+    nginx.ingress.kubernetes.io/cors-allow-methods: "GET, POST, PUT, DELETE, OPTIONS"
+    nginx.ingress.kubernetes.io/cors-allow-headers: "Authorization, Content-Type"
+    # Security headers
+    nginx.ingress.kubernetes.io/configuration-snippet: |
+      add_header X-Content-Type-Options  "nosniff"       always;
+      add_header X-Frame-Options         "DENY"           always;
+      add_header X-XSS-Protection        "1; mode=block"  always;
+      add_header Referrer-Policy         "no-referrer"    always;
+      add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
+spec:
+  tls:
+    - hosts:
+        - healthai.example.com
+      secretName: healthai-tls
+  rules:
+    - host: healthai.example.com
+      http:
+        paths:
+          # Frontend (catch-all, lowest priority)
+          - path: /()(.*)
+            pathType: Prefix
+            backend:
+              service:
+                name: frontend
+                port: { number: 3000 }
+          # API Gateway – everything under /api and /auth
+          - path: /api(/|$)(.*)
+            pathType: Prefix
+            backend:
+              service:
+                name: api-gateway
+                port: { number: 8000 }
+          - path: /auth(/|$)(.*)
+            pathType: Prefix
+            backend:
+              service:
+                name: api-gateway
+                port: { number: 8000 }
+          - path: /docs(/|$)(.*)
+            pathType: Prefix
+            backend:
+              service:
+                name: api-gateway
+                port: { number: 8000 }
+
+---
+# Frontend Service (ClusterIP → exposed via Ingress)
+apiVersion: v1
+kind: Service
+metadata:
+  name: frontend
+  namespace: healthcare
+spec:
+  selector: { app: frontend }
+  ports: [{ port: 3000, targetPort: 3000 }]
+
+---
+# Frontend Deployment
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: frontend
+  namespace: healthcare
+  labels: { app: frontend }
+spec:
+  replicas: 2
+  selector:
+    matchLabels: { app: frontend }
+  template:
+    metadata:
+      labels: { app: frontend }
+    spec:
+      containers:
+        - name: frontend
+          image: healthcare/frontend:latest
+          ports: [{ containerPort: 3000 }]
+          env:
+            - name: NEXT_PUBLIC_API_BASE_URL
+              value: "https://healthai.example.com"
+          resources:
+            requests: { cpu: 100m, memory: 256Mi }
+            limits:   { cpu: 500m, memory: 512Mi }
+          readinessProbe:
+            httpGet: { path: /, port: 3000 }
+            initialDelaySeconds: 15
+
+---
+# API Gateway LoadBalancer (external – use Ingress in production instead)
+apiVersion: v1
+kind: Service
+metadata:
+  name: api-gateway-lb
+  namespace: healthcare
+  annotations:
+    service.beta.kubernetes.io/aws-load-balancer-type: external
+    service.beta.kubernetes.io/aws-load-balancer-scheme: internet-facing
+spec:
+  selector: { app: api-gateway }
+  type: LoadBalancer
+  ports:
+    - port: 443
+      targetPort: 8000

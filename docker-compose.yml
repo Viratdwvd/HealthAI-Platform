@@ -1,0 +1,287 @@
+version: "3.9"
+
+# ──────────────────────────────────────────────────────────────────────────────
+# HealthAI Platform – FREE LOCAL STACK
+# No paid APIs. All AI runs on your machine.
+#
+# Start: docker compose up --build
+# First run downloads AI models (~2GB total, one-time)
+# ──────────────────────────────────────────────────────────────────────────────
+
+x-common-env: &common-env
+  LOG_LEVEL:       "${LOG_LEVEL:-INFO}"
+  KAFKA_BOOTSTRAP: "kafka:9092"
+  REDIS_URL:       "redis://redis:6379/0"
+  OTLP_ENDPOINT:   "http://jaeger:4317"
+  SECRET_KEY:      "${SECRET_KEY:-dev-secret-change-me}"
+
+x-service-defaults: &service-defaults
+  restart: unless-stopped
+  networks: [platform]
+  depends_on:
+    kafka:
+      condition: service_healthy
+    redis:
+      condition: service_healthy
+    qdrant:
+      condition: service_started
+
+services:
+
+  # ── AI Models (Ollama – runs LLMs locally, completely free) ─────────────────
+  ollama:
+    image: ollama/ollama:latest
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_models:/root/.ollama     # models are cached here
+    networks: [platform]
+    restart: unless-stopped
+    # Auto-pull models on startup
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        ollama serve &
+        sleep 5
+        echo "📥 Pulling llama3.2 (2GB, one-time download)..."
+        ollama pull llama3.2
+        echo "✅ llama3.2 ready"
+        echo "📥 Pulling nomic-embed-text (for embeddings fallback)..."
+        ollama pull nomic-embed-text
+        echo "✅ Models ready"
+        wait
+    healthcheck:
+      test: ["CMD", "ollama", "list"]
+      interval: 30s
+      timeout: 10s
+      retries: 20
+      start_period: 120s
+
+  # ── Infrastructure ──────────────────────────────────────────────────────────
+
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.6.0
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME:   2000
+    networks: [platform]
+    restart: unless-stopped
+
+  kafka:
+    image: confluentinc/cp-kafka:7.6.0
+    depends_on: [zookeeper]
+    environment:
+      KAFKA_BROKER_ID:                        1
+      KAFKA_ZOOKEEPER_CONNECT:                zookeeper:2181
+      KAFKA_ADVERTISED_LISTENERS:             PLAINTEXT://kafka:9092
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE:        "true"
+    healthcheck:
+      test:     ["CMD", "kafka-broker-api-versions", "--bootstrap-server", "localhost:9092"]
+      interval: 10s
+      timeout:  10s
+      retries:  10
+    networks: [platform]
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    command: redis-server --maxmemory 512mb --maxmemory-policy allkeys-lru
+    healthcheck:
+      test:     ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout:  3s
+      retries:  10
+    networks: [platform]
+    restart: unless-stopped
+
+  qdrant:
+    image: qdrant/qdrant:v1.9.2
+    ports:
+      - "6333:6333"
+    volumes:
+      - qdrant_data:/qdrant/storage
+    networks: [platform]
+    restart: unless-stopped
+
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER:     postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB:       healthcare
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test:     ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout:  3s
+      retries:  10
+    networks: [platform]
+    restart: unless-stopped
+
+  # ── Observability ───────────────────────────────────────────────────────────
+
+  jaeger:
+    image: jaegertracing/all-in-one:1.57
+    ports:
+      - "16686:16686"
+      - "4317:4317"
+    networks: [platform]
+    restart: unless-stopped
+
+  prometheus:
+    image: prom/prometheus:v2.51.2
+    volumes:
+      - ./infrastructure/monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+    ports:
+      - "9090:9090"
+    networks: [platform]
+    restart: unless-stopped
+
+  grafana:
+    image: grafana/grafana:10.4.2
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD: admin
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./infrastructure/monitoring/grafana-datasources.yml:/etc/grafana/provisioning/datasources/ds.yml:ro
+    ports:
+      - "3001:3000"
+    networks: [platform]
+    restart: unless-stopped
+    depends_on: [prometheus]
+
+  # ── Microservices ───────────────────────────────────────────────────────────
+
+  api-gateway:
+    build:
+      context:    .
+      dockerfile: api-gateway/Dockerfile
+    environment:
+      <<: *common-env
+      PORT: 8000
+    ports:
+      - "8000:8000"
+    <<: *service-defaults
+
+  ingestion-service:
+    build:
+      context:    .
+      dockerfile: services/ingestion-service/Dockerfile
+    environment:
+      <<: *common-env
+      PORT:            8001
+      MAX_FILE_SIZE_MB: 50
+    <<: *service-defaults
+
+  rag-service:
+    build:
+      context:    .
+      dockerfile: services/rag-service/Dockerfile
+    environment:
+      <<: *common-env
+      PORT:            8002
+      VECTOR_DB_URL:   http://qdrant:6333
+      EMBEDDING_MODEL: BAAI/bge-small-en-v1.5
+      EMBEDDING_DIM:   "384"
+    <<: *service-defaults
+
+  analytics-service:
+    build:
+      context:    .
+      dockerfile: services/analytics-service/Dockerfile
+    environment:
+      <<: *common-env
+      PORT:         8003
+      POSTGRES_DSN: postgresql+asyncpg://postgres:postgres@postgres:5432/healthcare
+    depends_on:
+      postgres:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks: [platform]
+    restart: unless-stopped
+
+  knowledge-service:
+    build:
+      context:    .
+      dockerfile: services/knowledge-service/Dockerfile
+    environment:
+      <<: *common-env
+      PORT: 8004
+    <<: *service-defaults
+
+  agent-orchestrator:
+    build:
+      context:    .
+      dockerfile: services/agent-orchestrator/Dockerfile
+    environment:
+      <<: *common-env
+      PORT:                  8005
+      LLM_SERVICE_URL:       http://llm-service:8006
+      RAG_SERVICE_URL:       http://rag-service:8002
+      ANALYTICS_SERVICE_URL: http://analytics-service:8003
+      KNOWLEDGE_SERVICE_URL: http://knowledge-service:8004
+      SESSION_SERVICE_URL:   http://session-service:8007
+      AGENT_TIMEOUT_S:       "60"
+    <<: *service-defaults
+
+  llm-service:
+    build:
+      context:    .
+      dockerfile: services/llm-service/Dockerfile
+    environment:
+      <<: *common-env
+      PORT:                  8006
+      OLLAMA_URL:            http://ollama:11434
+      OLLAMA_PRIMARY_MODEL:  llama3.2
+      OLLAMA_FALLBACK_MODEL: mistral
+    depends_on:
+      ollama:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+    networks: [platform]
+    restart: unless-stopped
+
+  session-service:
+    build:
+      context:    .
+      dockerfile: services/session-service/Dockerfile
+    environment:
+      <<: *common-env
+      PORT:            8007
+      SESSION_TTL_S:   "86400"
+    depends_on:
+      redis:
+        condition: service_healthy
+    networks: [platform]
+    restart: unless-stopped
+
+  # ── Frontend ─────────────────────────────────────────────────────────────────
+
+  frontend:
+    build:
+      context:    ./frontend
+      dockerfile: Dockerfile
+    environment:
+      NEXT_PUBLIC_API_BASE_URL: http://localhost:8000
+    ports:
+      - "3000:3000"
+    networks: [platform]
+    restart: unless-stopped
+
+networks:
+  platform:
+    driver: bridge
+
+volumes:
+  ollama_models:    # AI models stored here (persists between restarts)
+  qdrant_data:
+  postgres_data:
+  grafana_data:

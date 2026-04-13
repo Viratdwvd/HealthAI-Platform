@@ -1,0 +1,25 @@
+# RAG Service – FREE version requirements
+# Uses sentence-transformers locally instead of OpenAI API
+
+fastapi==0.111.0
+uvicorn[standard]==0.29.0
+
+# ── FREE local embeddings (replaces openai) ───────────────────────────────────
+sentence-transformers==3.0.1   # downloads model ~90MB on first run, then cached
+torch==2.3.1                    # CPU-only, no GPU required
+
+# ── Vector DB client ──────────────────────────────────────────────────────────
+qdrant-client==1.9.1
+
+# ── Messaging & infra ─────────────────────────────────────────────────────────
+aiokafka==0.10.0
+prometheus-fastapi-instrumentator==7.0.0
+pydantic-settings==2.2.1
+structlog==24.1.0
+opentelemetry-sdk==1.24.0
+opentelemetry-exporter-otlp-proto-grpc==1.24.0
+
+# ── Cross-encoder reranker (free, local) ──────────────────────────────────────
+# sentence-transformers already includes this
+httpx==0.27.0
+tenacity==8.3.0

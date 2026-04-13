@@ -1,0 +1,46 @@
+[tool.pytest.ini_options]
+asyncio_mode   = "auto"
+testpaths      = [
+  "services/ingestion-service/tests",
+  "services/rag-service/tests",
+  "services/analytics-service/tests",
+  "services/knowledge-service/tests",
+  "services/agent-orchestrator/tests",
+  "services/llm-service/tests",
+  "tests",
+]
+python_files  = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+addopts       = "-v --tb=short --no-header"
+
+[tool.ruff]
+target-version = "py312"
+line-length    = 100
+select = ["E", "F", "W", "I", "N", "UP", "B", "C4", "SIM", "RUF"]
+ignore = ["E501", "B008", "N815"]
+exclude = [".git", "__pycache__", ".venv", "node_modules", ".next"]
+
+[tool.ruff.isort]
+known-first-party = ["shared"]
+
+[tool.mypy]
+python_version         = "3.12"
+strict                 = false
+ignore_missing_imports = true
+exclude                = ["node_modules", ".venv", ".next"]
+
+[tool.coverage.run]
+source   = ["services", "shared"]
+omit     = ["*/tests/*", "*/__init__.py", "*/conftest.py"]
+branch   = true
+
+[tool.coverage.report]
+show_missing   = true
+skip_covered   = false
+fail_under     = 70
+exclude_lines  = [
+  "pragma: no cover",
+  "if TYPE_CHECKING:",
+  "raise NotImplementedError",
+]

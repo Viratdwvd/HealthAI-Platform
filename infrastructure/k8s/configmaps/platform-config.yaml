@@ -1,0 +1,43 @@
+---
+# Namespace
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: healthcare
+  labels:
+    name: healthcare
+
+---
+# Platform secrets (values must be base64 encoded)
+apiVersion: v1
+kind: Secret
+metadata:
+  name: platform-secrets
+  namespace: healthcare
+type: Opaque
+stringData:
+  secret-key:        "change-me-in-production"
+  openai-api-key:    ""          # fill in before deploy
+  anthropic-api-key: ""          # fill in before deploy
+  postgres-password: "postgres"
+
+---
+# Platform configmap
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: platform-config
+  namespace: healthcare
+data:
+  KAFKA_BOOTSTRAP:         "kafka:9092"
+  REDIS_URL:               "redis://redis:6379/0"
+  OTLP_ENDPOINT:           "http://jaeger:4317"
+  LOG_LEVEL:               "INFO"
+  ENVIRONMENT:             "production"
+  VECTOR_DB_URL:           "http://qdrant:6333"
+  POSTGRES_DSN:            "postgresql+asyncpg://postgres:postgres@postgres:5432/healthcare"
+  LLM_SERVICE_URL:         "http://llm-service:8006"
+  RAG_SERVICE_URL:         "http://rag-service:8002"
+  ANALYTICS_SERVICE_URL:   "http://analytics-service:8003"
+  KNOWLEDGE_SERVICE_URL:   "http://knowledge-service:8004"
+  SESSION_SERVICE_URL:     "http://session-service:8007"
