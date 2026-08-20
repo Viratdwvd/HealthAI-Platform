@@ -1,0 +1,173 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# .gitignore – HealthAI Platform monorepo
+# Python microservices · Next.js frontend · Docker · Kubernetes
+# ─────────────────────────────────────────────────────────────────────────────
+
+# ── Nested git repositories (remove before committing) ───────────────────────
+HealthAI-Platform/
+
+# ── Secrets & environment ─────────────────────────────────────────────────────
+.env
+.env.local
+.env.*.local
+.env.production
+.env.staging
+*.key
+*.pem
+*.p12
+*.pfx
+*.crt
+*.cer
+secrets/
+credentials/
+
+# ── Python ────────────────────────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+*.pyd
+.Python
+build/
+dist/
+*.egg-info/
+*.egg
+MANIFEST
+.installed.cfg
+
+# Virtual environments
+.venv/
+venv/
+env/
+ENV/
+env.bak/
+venv.bak/
+.eggs/
+pip-wheel-metadata/
+
+# Type checkers
+.mypy_cache/
+.dmypy.json
+dmypy.json
+.pytype/
+.pyre/
+
+# Linters & formatters
+.ruff_cache/
+
+# Testing & coverage
+.pytest_cache/
+htmlcov/
+.coverage
+.coverage.*
+coverage.xml
+coverage/
+*.cover
+*.coveralls.json
+nosetests.xml
+test-results/
+junit.xml
+
+# Jupyter / IPython
+.ipynb_checkpoints/
+*.ipynb
+
+# Alembic
+# (keep alembic.ini and migrations/ tracked — only exclude local overrides)
+alembic.ini.local
+
+# ── Node / Next.js ────────────────────────────────────────────────────────────
+node_modules/
+.next/
+out/
+frontend/.next/
+frontend/out/
+frontend/node_modules/
+*.tsbuildinfo
+next-env.d.ts
+.npm
+.yarn/
+.pnp.*
+.turbo/
+.vercel/
+
+# Build outputs
+frontend/build/
+frontend/dist/
+
+# ── Docker ────────────────────────────────────────────────────────────────────
+.docker/
+# Keep docker-compose.yml and docker-compose.free.yml tracked;
+# only ignore local developer overrides.
+docker-compose.override.yml
+docker-compose.local.yml
+
+# ── Kubernetes & Infrastructure ───────────────────────────────────────────────
+infrastructure/k8s/secrets/
+kubeconfig
+*.kubeconfig
+*.tfstate
+*.tfstate.*
+.terraform/
+.terraform.lock.hcl
+terraform.tfvars
+*.tfvars.json
+
+# ── IDEs & editors ───────────────────────────────────────────────────────────
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.project
+.classpath
+.settings/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# ── OS artifacts ─────────────────────────────────────────────────────────────
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+desktop.ini
+
+# ── Logs ─────────────────────────────────────────────────────────────────────
+*.log
+logs/
+*.pid
+*.pid.lock
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# ── Data, ML models & large files ────────────────────────────────────────────
+data/
+*.csv
+*.parquet
+*.pkl
+*.pickle
+*.h5
+*.hdf5
+*.model
+*.onnx
+*.pt
+*.pth
+models/weights/
+datasets/
+
+# ── Misc ──────────────────────────────────────────────────────────────────────
+*.bak
+*.tmp
+*.temp
+.cache/
+tmp/
+temp/
+.sass-cache/

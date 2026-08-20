@@ -1,0 +1,21 @@
+# LLM Service – FREE version requirements
+# Uses Groq (free tier) / Ollama (local) / HuggingFace (free tier)
+# NO openai or anthropic packages required
+
+fastapi==0.111.0
+uvicorn[standard]==0.29.0
+
+# ── HTTP client for Groq / Ollama / HuggingFace APIs ─────────────────────────
+httpx==0.27.0
+
+# ── Caching & infra ───────────────────────────────────────────────────────────
+redis[asyncio]==5.0.4
+aiokafka==0.10.0
+prometheus-fastapi-instrumentator==7.0.0
+pydantic-settings==2.2.1
+structlog==24.1.0
+opentelemetry-sdk==1.24.0
+opentelemetry-exporter-otlp-proto-grpc==1.24.0
+
+# ── groq SDK (optional – we use httpx directly but this makes it easier) ─────
+groq==0.9.0
